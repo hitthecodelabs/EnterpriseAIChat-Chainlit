@@ -49,7 +49,7 @@ graph LR
 Clone the repository and navigate to the project directory:
 
 ```bash
-git clone https://github.com/your-username/enterprise-ai-chat.git
+git clone https://github.com/hitthecodelabs/enterprise-ai-chat.git
 cd enterprise-ai-chat
 ```
 
