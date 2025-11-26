@@ -25,8 +25,8 @@ The application acts as a stateless frontend layer that forwards user intent and
 
 ```mermaid
 graph LR
-    User("End User") <-->|WebSocket| CL["Chainlit App\n(Maria S.)"]
-    CL <-->|Async HTTP/JSON| MW["AI Middleware\n(Brain)"]
+    User("End User") <-->|WebSocket| CL["Chainlit App<br/>(Maria S.)"]
+    CL <-->|Async HTTP/JSON| MW["AI Middleware<br/>(Brain)"]
 
     subgraph "Secure Scope"
     CL
