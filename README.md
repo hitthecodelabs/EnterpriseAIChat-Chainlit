@@ -18,23 +18,235 @@ The solution is engineered to handle **Customer Service** workflows (e.g., Order
 - ✨ **Optimistic UI & UX:** Features transitional states ("Thinking...", "Connecting to Specialist...") to manage user expectations and reduce perceived latency.
 - ⚙️ **Configurable Persona:** The bot's name, role, and welcome message are fully customizable via environment variables without touching the codebase.
 
-## 🏗 Architecture
+## 📊 System Diagrams
+
+### High-Level Architecture
 
 The application acts as a stateless frontend layer that forwards user intent and history to a backend logic tier.
 
-
 ```mermaid
 graph LR
-    User("End User") <-->|WebSocket| CL["Chainlit App<br/>(Maria S.)"]
-    CL <-->|Async HTTP/JSON| MW["AI Middleware<br/>(Brain)"]
+    User("👤 End User") <-->|WebSocket| CL["🖥️ Chainlit App<br/>(Frontend)"]
+    CL <-->|Async HTTP/JSON| MW["🧠 AI Middleware<br/>(Backend)"]
 
-    subgraph "Secure Scope"
-    CL
+    subgraph "Frontend Layer"
+        CL
+        SS[("📦 Session<br/>Storage")]
+        CL <--> SS
     end
 
     subgraph "Backend Infrastructure"
-    MW
+        MW
+        AI["🤖 AI Models"]
+        MW <--> AI
     end
+
+    style User fill:#e1f5fe
+    style CL fill:#c8e6c9
+    style MW fill:#fff3e0
+```
+
+### Message Flow Sequence
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as 👤 User
+    participant CL as 🖥️ Chainlit
+    participant S as 📦 Session
+    participant MW as 🧠 Middleware
+
+    rect rgb(230, 245, 255)
+        Note over CL: Chat Initialization
+        CL->>CL: Validate ENV Variables
+        alt Missing Config
+            CL-->>U: ⚠️ System Error
+        else Config Valid
+            CL->>S: Initialize Empty History
+            CL-->>U: 👋 Welcome Message
+        end
+    end
+
+    rect rgb(255, 243, 224)
+        Note over U,MW: Message Processing Loop
+        U->>CL: Send Message
+        CL->>S: Store User Message
+        CL-->>U: 🧠 "Thinking..."
+        
+        CL->>MW: POST {message, history}
+        
+        alt HTTP 200 OK
+            MW-->>CL: {response, category}
+            
+            alt Specialized Category
+                CL-->>U: 🔄 "Connecting to Specialist..."
+                CL->>CL: ⏳ Wait 2s (UX Delay)
+            else General Category
+                CL->>CL: Remove Status Message
+            end
+            
+            CL-->>U: 💬 AI Response
+            CL->>S: Store Assistant Response
+            
+        else HTTP Error
+            CL-->>U: ⚠️ Service Unavailable
+        else Timeout (45s)
+            CL-->>U: ⚠️ Timeout Error
+        else Connection Failed
+            CL-->>U: ⚠️ Connection Error
+        end
+    end
+```
+
+### Request Processing Flowchart
+```mermaid
+flowchart TD
+    A([📨 User Message Received]) --> B[Update Session History<br/>with User Message]
+    B --> C[Display Status:<br/>'🧠 Thinking...']
+    C --> D[Prepare JSON Payload<br/>& Auth Headers]
+    D --> E{Async POST<br/>to Backend API}
+    
+    E -->|✅ Status 200| F[Parse JSON Response]
+    E -->|❌ Status 4xx/5xx| G[/"⚠️ Service Unavailable"/]
+    E -->|⏱️ Timeout 45s| H[/"⚠️ Timeout Error"/]
+    E -->|🔌 Network Error| I[/"⚠️ Connection Error"/]
+    
+    F --> J{Check Response<br/>Category}
+    
+    J -->|Specialized<br/>Orders/Returns/etc| K[Update Status:<br/>'🔄 Connecting to Specialist...']
+    J -->|General or<br/>AccountProfileOther| L[Remove Status<br/>Message]
+    
+    K --> M[⏳ Transition Delay<br/>2 seconds]
+    M --> N
+    L --> N[Send AI Response<br/>to User]
+    
+    N --> O[Update Session History<br/>with Assistant Response]
+    O --> P([✅ Ready for Next Message])
+    
+    G --> P
+    H --> P
+    I --> P
+
+    style A fill:#e3f2fd
+    style P fill:#c8e6c9
+    style G fill:#ffcdd2
+    style H fill:#ffcdd2
+    style I fill:#ffcdd2
+```
+
+### Application State Diagram
+```mermaid
+stateDiagram-v2
+    [*] --> Initializing: on_chat_start
+
+    Initializing --> ConfigError: Missing ENV Variables
+    Initializing --> Ready: ✅ Config Valid
+
+    ConfigError --> [*]: Session Ends
+    
+    Ready --> Processing: User Message Received
+    
+    Processing --> Specialist: Category = Specialized
+    Processing --> GeneralResponse: Category = General
+    Processing --> ErrorState: API Failure
+    
+    Specialist --> TransitionDelay: Show "Connecting..."
+    TransitionDelay --> Responding: After 2s
+    
+    GeneralResponse --> Responding: Immediate
+    
+    Responding --> Ready: ✅ Response Sent
+    
+    ErrorState --> Ready: ⚠️ Error Displayed
+
+    note right of Processing
+        Async HTTP Request
+        with 45s Timeout
+    end note
+
+    note right of Specialist
+        Categories like:
+        - OrderTracking
+        - Returns
+        - ProductInquiry
+    end note
+```
+
+### Component Interaction
+```mermaid
+graph TB
+    subgraph "Environment Configuration"
+        ENV[".env File"]
+        ENV --> |BACKEND_API_URL| CFG
+        ENV --> |BACKEND_API_SECRET| CFG
+        ENV --> |BOT_NAME| CFG
+        ENV --> |BOT_ROLE| CFG
+        CFG["Config Class"]
+    end
+
+    subgraph "Chainlit Application"
+        CFG --> APP["app.py"]
+        
+        subgraph "Event Handlers"
+            START["@on_chat_start"]
+            MSG["@on_message"]
+        end
+        
+        subgraph "State Functions"
+            GET["get_history()"]
+            UPD["update_history()"]
+        end
+        
+        APP --> START
+        APP --> MSG
+        MSG --> GET
+        MSG --> UPD
+    end
+
+    subgraph "Session Layer"
+        SESS["cl.user_session"]
+        GET <--> SESS
+        UPD --> SESS
+    end
+
+    subgraph "External Communication"
+        HTTP["httpx.AsyncClient"]
+        MSG --> HTTP
+        HTTP --> |POST| API["Backend API"]
+        API --> |JSON| HTTP
+    end
+
+    style ENV fill:#fff3e0
+    style CFG fill:#e8f5e9
+    style APP fill:#e3f2fd
+    style SESS fill:#f3e5f5
+    style API fill:#fce4ec
+```
+
+### Error Handling Flow
+```mermaid
+flowchart LR
+    subgraph "Request Phase"
+        REQ[HTTP Request] --> |Try| SEND[Send to Backend]
+    end
+    
+    subgraph "Response Handling"
+        SEND --> |200| OK[✅ Process Response]
+        SEND --> |4xx/5xx| ERR1[❌ HTTP Error]
+        SEND --> |TimeoutException| ERR2[⏱️ Timeout]
+        SEND --> |Exception| ERR3[🔌 Connection Error]
+    end
+    
+    subgraph "User Feedback"
+        OK --> |Success| RESP[💬 Show AI Response]
+        ERR1 --> |Log + Display| MSG1["⚠️ Service Unavailable"]
+        ERR2 --> |Log + Display| MSG2["⚠️ Timeout Message"]
+        ERR3 --> |Log + Display| MSG3["⚠️ Connection Error"]
+    end
+
+    style OK fill:#c8e6c9
+    style ERR1 fill:#ffcdd2
+    style ERR2 fill:#ffcdd2
+    style ERR3 fill:#ffcdd2
 ```
 
 ## 🚀 Getting Started
