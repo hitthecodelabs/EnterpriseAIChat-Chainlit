@@ -25,25 +25,37 @@ The solution is engineered to handle **Customer Service** workflows (e.g., Order
 The application acts as a stateless frontend layer that forwards user intent and history to a backend logic tier.
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ffffff', 'edgeLabelBackground':'#ffffff', 'tertiaryColor': '#f4f4f4'}}}%%
 graph LR
-    User("👤 End User") <-->|WebSocket| CL["🖥️ Chainlit App<br/>(Frontend)"]
-    CL <-->|Async HTTP/JSON| MW["🧠 AI Middleware<br/>(Backend)"]
+    %% Definición de Estilos (Clases)
+    classDef person fill:#007bff,stroke:#0056b3,stroke-width:2px,color:#fff,rx:10,ry:10;
+    classDef frontend fill:#e3f2fd,stroke:#2196f3,stroke-width:2px,color:#0d47a1,rx:5,ry:5;
+    classDef backend fill:#fff3e0,stroke:#ff9800,stroke-width:2px,color:#e65100,rx:5,ry:5;
+    classDef db fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px,stroke-dasharray: 5 5;
 
-    subgraph "Frontend Layer"
-        CL
-        SS[("📦 Session<br/>Storage")]
-        CL <--> SS
+    %% Nodos
+    User("👤 End User"):::person
+    
+    subgraph ClientSide ["🖥️ Frontend Layer"]
+        direction TB
+        CL["Chainlit App"]:::frontend
+        SS[("Session Storage")]:::db
     end
 
-    subgraph "Backend Infrastructure"
-        MW
-        AI["🤖 AI Models"]
-        MW <--> AI
+    subgraph ServerSide ["☁️ Backend Infrastructure"]
+        direction TB
+        MW["🧠 AI Middleware"]:::backend
+        AI["🤖 AI Models"]:::backend
     end
 
-    style User fill:#e1f5fe
-    style CL fill:#c8e6c9
-    style MW fill:#fff3e0
+    %% Relaciones
+    User <==>|WebSocket| CL
+    CL <==>|Async HTTP/JSON| MW
+    CL -.->|Persistencia| SS
+    MW <--> AI
+    
+    %% Enlace invisible para alinear subgrafos si es necesario
+    ClientSide ~~~ ServerSide
 ```
 
 ### Message Flow Sequence
